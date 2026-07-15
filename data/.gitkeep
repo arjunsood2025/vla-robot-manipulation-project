@@ -1,0 +1,3 @@
+# Datasets live on the Hugging Face Hub, not in git. This directory holds local
+# working copies (data/raw_episodes, data/processed_episodes, data/layouts,
+# data/openvla_rlds) which are all .gitignored. Kept so the path exists on clone.

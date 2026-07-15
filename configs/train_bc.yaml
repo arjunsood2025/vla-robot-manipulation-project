@@ -1,0 +1,48 @@
+# Phase 1 baseline: behavior-cloning MLP on frozen CLIP text + ResNet-18 image
+# features. This exists to VALIDATE THE DATA PIPELINE, not to win. Runs on a
+# single GPU in well under an hour for a few hundred demos.
+
+seed: 42
+
+dataset:
+  repo_id: "local/so101_tabletop_v1"   # HF repo id OR a local LeRobotDataset root
+  root: null                            # set to a local path to skip Hub download
+  image_keys: ["observation.images.front", "observation.images.wrist"]
+  state_key: "observation.state"
+  action_key: "action"
+  task_key: "task"
+  # Fraction of episodes held out for validation loss (NOT the robot eval).
+  val_fraction: 0.1
+
+model:
+  image_encoder: "resnet18"     # torchvision, ImageNet-initialised, fine-tuned
+  text_encoder: "clip"          # frozen CLIP ViT-B/32 text tower
+  clip_model_name: "openai/clip-vit-base-patch32"
+  image_size: 224
+  n_cameras: 2                  # front + wrist -> features concatenated
+  state_dim: 6
+  action_dim: 6
+  hidden_dims: [512, 512, 256]
+  dropout: 0.1
+
+train:
+  batch_size: 64
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  epochs: 50
+  optimizer: "adamw"
+  grad_clip_norm: 1.0
+  num_workers: 8
+  amp: true                     # mixed precision on the GPU box
+  # Data augmentation
+  random_crop: true
+  crop_scale: [0.9, 1.0]
+  color_jitter: 0.1
+
+logging:
+  project: "vla-manipulation"
+  run_name: "bc_baseline_v1"
+  backend: "wandb"              # "wandb" | "tensorboard" | "none"
+  log_every: 20
+  ckpt_dir: "outputs/bc_baseline_v1"
+  save_every_epochs: 5

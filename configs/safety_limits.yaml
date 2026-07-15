@@ -1,0 +1,34 @@
+# Hard safety envelope enforced by vla.inference.safety.SafetyFilter, sitting
+# BETWEEN the policy output and the motors. Nothing the policy predicts reaches
+# the servos without passing every check here. Tune conservatively first, then
+# loosen only if the arm is visibly too sluggish.
+
+# Per-step joint delta cap (degrees per control tick @ 30 Hz).
+# 6 deg/tick * 30 Hz = 180 deg/s max joint speed. Lower = safer + smoother.
+max_joint_delta_deg: 6.0
+
+# Gripper is allowed a larger per-tick delta (it needs to open/close quickly).
+max_gripper_delta: 15.0
+
+# Cartesian workspace bounding box for the end-effector, in the robot base
+# frame (metres). A predicted target whose forward-kinematics EE position falls
+# outside this box is rejected (the arm holds its previous target instead).
+workspace_bbox_m:
+  x: [-0.35, 0.35]
+  y: [ 0.05, 0.45]   # in front of the base only; no reaching backwards
+  z: [ 0.01, 0.35]   # never command below the table (z=0) or above the frame
+
+# Fraction of the calibrated joint range to actually allow, per side. 0.98
+# keeps a small margin away from the mechanical hard stops that can stall a servo.
+joint_limit_margin: 0.98
+
+# Servo current ceiling for the gripper (raw Feetech units). Above this the
+# filter forces the gripper open to avoid crushing / stalling on an object.
+gripper_current_limit: 500
+
+# Keyboard e-stop: pressing this key torques off ALL servos immediately.
+estop_key: "space"
+
+# If the policy server misses this many consecutive action requests (stale
+# chunk), the client holds position rather than replaying old actions.
+max_stale_ticks: 3

@@ -1,0 +1,42 @@
+# Phase 3: ACT (Action Chunking Transformer) via LeRobot's trainer.
+# This file documents the exact hyperparameters; ACT itself is trained with the
+# LeRobot CLI, which our scripts/train.py shells out to. Reproduced here so the
+# whole recipe lives in one place under version control.
+#
+# Equivalent CLI:
+#   lerobot-train \
+#     --policy.type=act \
+#     --dataset.repo_id=<hf_user>/so101_tabletop_v1 \
+#     --batch_size=8 --steps=100000 \
+#     --policy.chunk_size=100 --policy.n_action_steps=100 \
+#     --policy.kl_weight=10 --policy.optimizer_lr=1e-5 \
+#     --output_dir=outputs/act_v1 --wandb.enable=true
+
+policy:
+  type: act
+  chunk_size: 100          # actions predicted per forward pass
+  n_action_steps: 100      # actions executed before re-querying
+  kl_weight: 10.0          # weight on the CVAE latent KL term
+  dim_model: 512
+  n_heads: 8
+  n_encoder_layers: 4
+  n_decoder_layers: 1
+  vision_backbone: "resnet18"
+  use_vae: true
+
+dataset:
+  repo_id: "local/so101_tabletop_v1"
+
+train:
+  batch_size: 8
+  steps: 100000
+  optimizer_lr: 1.0e-5
+  lr_backbone: 1.0e-5
+  weight_decay: 1.0e-4
+
+# Inference-time temporal ensembling (see vla.inference.action_chunking).
+inference:
+  temporal_ensemble: true
+  ensemble_weight_m: 0.01   # exponential weight exp(-m * age); smaller = smoother
+
+output_dir: "outputs/act_v1"

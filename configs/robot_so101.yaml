@@ -1,0 +1,49 @@
+# SO-101 follower arm description used by the safety filter, kinematics stub,
+# and the inference client. Values are the LeRobot SO-101 defaults; RE-MEASURE
+# and RE-CALIBRATE for your physical arm before trusting the workspace check.
+
+robot:
+  type: so101_follower
+  control_hz: 30          # command rate to the servos
+  n_joints: 6             # 5 arm joints + 1 gripper (all absolute position targets)
+
+  # Order MUST match the order of `action` / `observation.state` in the dataset.
+  joint_names:
+    - shoulder_pan
+    - shoulder_lift
+    - elbow_flex
+    - wrist_flex
+    - wrist_roll
+    - gripper
+
+  # Calibrated joint position limits in DEGREES (Feetech STS3215 range).
+  # These are placeholders from a nominal calibration — overwrite with the
+  # numbers from your own `lerobot-calibrate` run.
+  joint_limits_deg:
+    shoulder_pan:  [-110.0, 110.0]
+    shoulder_lift: [-100.0, 100.0]
+    elbow_flex:    [-100.0, 100.0]
+    wrist_flex:    [-100.0, 100.0]
+    wrist_roll:    [-160.0, 160.0]
+    gripper:       [0.0, 100.0]     # 0 = closed, 100 = open (percent)
+
+  # Approximate link lengths (metres) for the planar FK workspace check.
+  # Measure your arm; these are order-of-magnitude SO-101 values.
+  link_lengths_m:
+    base_height:   0.055
+    shoulder:      0.116
+    elbow:         0.135
+    wrist:         0.065
+
+# Camera configuration for `lerobot-record` / the inference client.
+cameras:
+  front:
+    index_or_path: 0        # /dev/video0 or a device path; set per machine
+    width: 640
+    height: 480
+    fps: 30
+  wrist:
+    index_or_path: 2
+    width: 640
+    height: 480
+    fps: 30

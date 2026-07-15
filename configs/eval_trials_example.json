@@ -1,0 +1,39 @@
+{
+  "_comment": "Example trial-spec consumed by scripts/evaluate.py. One entry per physical trial. The operator arranges objects into the listed grid cells, the policy runs, and the operator labels the outcome by keypress. Conditions must be held FIXED across every model being compared (same layouts, same instructions, same trial count).",
+  "suite_name": "block_in_bowl_smoke",
+  "trials_per_condition": 20,
+  "conditions": [
+    {
+      "condition_id": "train_phrasing_seen_cells",
+      "task_id": "block_in_bowl",
+      "phrasing_source": "train",
+      "layout": {"red block": "C2", "green bowl": "D3"},
+      "distractors": [],
+      "seed": 0
+    },
+    {
+      "condition_id": "heldout_phrasing_seen_cells",
+      "task_id": "block_in_bowl",
+      "phrasing_source": "heldout",
+      "layout": {"red block": "C2", "green bowl": "D3"},
+      "distractors": [],
+      "seed": 1
+    },
+    {
+      "condition_id": "train_phrasing_unseen_cells",
+      "task_id": "block_in_bowl",
+      "phrasing_source": "train",
+      "layout": {"red block": "A1", "green bowl": "F4"},
+      "distractors": [],
+      "seed": 2
+    },
+    {
+      "condition_id": "with_distractors",
+      "task_id": "block_in_bowl",
+      "phrasing_source": "train",
+      "layout": {"red block": "C2", "green bowl": "D3"},
+      "distractors": ["blue block:B4", "spoon:E1", "orange ball:E4"],
+      "seed": 3
+    }
+  ]
+}

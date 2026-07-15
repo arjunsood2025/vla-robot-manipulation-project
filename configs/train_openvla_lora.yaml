@@ -1,0 +1,39 @@
+# Phase 4, option B (the resume headline): fine-tune OpenVLA-7B with LoRA on the
+# collected demos. Prefer the OpenVLA-OFT recipe (continuous L1 action head +
+# action chunking + parallel decoding) over the original 256-bin discretisation:
+# OFT lifts control frequency from ~5 Hz to 25+ Hz, which matters on a real arm.
+#
+# Requires: LeRobotDataset -> RLDS/OpenVLA format conversion first
+#   python scripts/convert_to_openvla.py --repo-id <hf_user>/so101_tabletop_v1 \
+#          --out data/openvla_rlds/so101_tabletop_v1
+
+base_model: "openvla/openvla-7b"
+
+lora:
+  r: 32
+  alpha: 32
+  dropout: 0.0
+  # Attention + MLP projections in the Llama backbone.
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+action_head:
+  type: "l1_regression"     # OFT continuous head (vs "token" for the original)
+  chunk_size: 8             # actions predicted per forward pass (OFT parallel decode)
+  action_dim: 6
+
+train:
+  precision: "bf16"
+  lr: 5.0e-4
+  per_device_batch_size: 2
+  grad_accum_steps: 8       # effective batch 16
+  max_steps: 30000
+  warmup_steps: 500
+  save_every_steps: 5000
+  use_qlora: false          # set true for 4-bit if the GPU is < 24 GB
+
+dataset:
+  rlds_root: "data/openvla_rlds/so101_tabletop_v1"
+  # OpenVLA normalises actions with dataset statistics; recompute per dataset.
+  action_stats_path: "data/openvla_rlds/so101_tabletop_v1/dataset_statistics.json"
+
+output_dir: "outputs/openvla_lora_v1"

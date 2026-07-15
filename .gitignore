@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Data & model artifacts (tracked on the HF Hub / W&B, not in git)
+data/raw_episodes/
+data/processed_episodes/
+outputs/
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+wandb/
+runs/
+
+# Media (link the demo videos in the README; don't commit large binaries)
+videos/*.mp4
+*.bag
+
+# Notebook cruft
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets / local config
+.env
+*.local.yaml
+calibration/*.json
+
+# Prep
+CLAUDE.md
+GUIDE.md
+PROGRESS.md

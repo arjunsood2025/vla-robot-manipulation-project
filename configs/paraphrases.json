@@ -1,0 +1,91 @@
+{
+  "_comment": "Instruction bank per task. 'train' phrasings are rotated through during data collection; 'heldout' phrasings are NEVER recorded and are used only at evaluation to measure the paraphrase generalization gap. Task ids match the Extreme-Version curriculum table in CLAUDE.md.",
+  "tasks": {
+    "block_in_bowl": {
+      "curriculum_id": 1,
+      "objects": {"target": "red block", "container": "green bowl"},
+      "train": [
+        "Put the red block in the green bowl.",
+        "Place the red block into the green bowl.",
+        "Drop the red block in the green bowl.",
+        "Move the red block into the green bowl."
+      ],
+      "heldout": [
+        "Set the red cube down inside the green dish.",
+        "The red block goes in the green bowl.",
+        "Into the green bowl, put the red block."
+      ]
+    },
+    "ball_in_cup": {
+      "curriculum_id": 2,
+      "objects": {"target": "orange ball", "container": "blue cup"},
+      "train": [
+        "Drop the orange ball into the blue cup.",
+        "Put the orange ball in the blue cup.",
+        "Place the orange ball into the blue cup."
+      ],
+      "heldout": [
+        "The orange ball belongs in the blue cup.",
+        "Deposit the orange ball inside the blue cup."
+      ]
+    },
+    "reposition_center": {
+      "curriculum_id": 3,
+      "objects": {"target": "blue block"},
+      "train": [
+        "Move the blue block to the center of the table.",
+        "Put the blue block in the middle of the table.",
+        "Bring the blue block to the center."
+      ],
+      "heldout": [
+        "Slide the blue block into the middle.",
+        "Center the blue block on the mat."
+      ]
+    },
+    "left_of": {
+      "curriculum_id": 5,
+      "objects": {"target": "red block", "anchor": "blue block"},
+      "train": [
+        "Move the red block to the left of the blue block.",
+        "Put the red block to the left of the blue block.",
+        "Place the red block left of the blue block."
+      ],
+      "heldout": [
+        "The red block should sit on the left side of the blue block.",
+        "Position the red block just left of the blue one."
+      ]
+    },
+    "stack_two": {
+      "curriculum_id": 7,
+      "objects": {"top": "green block", "bottom": "red block"},
+      "train": [
+        "Stack the green block on the red block.",
+        "Put the green block on top of the red block.",
+        "Place the green block onto the red block."
+      ],
+      "heldout": [
+        "Set the green block on the red block.",
+        "Balance the green block atop the red block."
+      ]
+    },
+    "distractor_type": {
+      "curriculum_id": 13,
+      "objects": {"target": "red block", "distractor": "red ball"},
+      "train": [
+        "Pick up the red block, not the red ball.",
+        "Grab the red block, not the ball.",
+        "Take the red block and ignore the red ball."
+      ],
+      "heldout": [
+        "Lift the red block; leave the red ball.",
+        "It's the red block you want, not the red ball."
+      ]
+    }
+  },
+  "heldout_axes": {
+    "reserved_grid_cells": ["A1", "F4", "A4", "F1"],
+    "reserved_color_container_combo": {"target": "purple block", "container": "green bowl"},
+    "lighting_change": "warm 3000K panel (train uses neutral 5000K)",
+    "camera_nudge_cm": 5
+  }
+}

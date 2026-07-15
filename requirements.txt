@@ -1,0 +1,43 @@
+# Core deep learning stack
+# NOTE: install a CUDA build of torch on the GPU training machine, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+# The pin below is the version this project was developed and tested against.
+torch==2.6.0
+torchvision==0.21.0
+
+# Vision-language backbone for the BC baseline (CLIP/SigLIP text+image encoders)
+transformers==4.49.0
+open-clip-torch==2.30.0
+timm==1.0.14
+
+# Robot-learning framework (recording, datasets, ACT/SmolVLA/pi0 training)
+# Record the exact commit hash in the README; the LeRobot API moves fast.
+lerobot[feetech]==0.1.0
+
+# OpenVLA fine-tuning (Phase 4, option B). Installed on the training box only.
+peft==0.14.0
+accelerate==1.4.0
+bitsandbytes==0.45.2  # QLoRA 4-bit; Linux/CUDA only
+
+# Data, config, tracking
+numpy==2.2.3
+pandas==2.2.3
+pyyaml==6.0.2
+opencv-python==4.11.0.86
+pillow==11.1.0
+wandb==0.19.6
+tensorboard==2.19.0
+huggingface-hub==0.29.1
+
+# Inference server / client
+websockets==14.2
+msgpack==1.1.0
+msgpack-numpy==0.4.8
+
+# Scientific / evaluation
+scipy==1.15.2
+
+# Dev / testing
+pytest==8.3.4
+pytest-cov==6.0.0
+matplotlib==3.10.0
