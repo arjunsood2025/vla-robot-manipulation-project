@@ -1,191 +1,236 @@
 # Language-Conditioned VLA Robot Manipulation
 
-A vision-language-action (VLA) system that drives an **SO-101** robot arm from a
-camera image + a natural-language instruction ("*put the red block in the green
-bowl*") + the arm's joint state, and outputs the continuous joint commands to do
-it. It spans the full loop: **teleop data collection → dataset → policy training
-(BC → ACT → SmolVLA → OpenVLA) → async inference server + safety filter → an
-evaluation suite with confidence intervals → ablations + failure analysis.**
+A vision-language-action system for the SO-101 robot arm. It maps a camera image,
+a natural-language instruction, and the arm's joint state to continuous joint
+commands. The repository covers the full stack: dataset pipeline, a three-model
+training ladder, a policy inference server with a safety filter, and an
+evaluation harness.
 
-> **New here? Read [`GUIDE.md`](GUIDE.md)** — it explains the project from the
-> ground up (Section 1 assumes only first-year CS), what to learn to build it
-> yourself (Section 2), a file-by-file interview-grade walkthrough (Section 3),
-> the portfolio write-up (Section 4), and résumé bullets (Section 5).
+**Scope.** Training and evaluation were performed entirely offline on a public
+SO-101 dataset. No physical robot was used. The reported metric is held-out
+action-prediction error, not task success rate. The robot-facing code
+(teleoperation, calibration, the 30 Hz client, the safety filter) is implemented
+and tested against a simulated robot only.
 
-<!-- IMAGE: hero shot — the arm mid-grasp over the gridded mat, front+wrist camera
-     insets, instruction text overlaid. Take a still from demo_successes.mp4. -->
+## Results
 
----
+Three policies were trained on
+[`youliangtan/so101-table-cleanup`](https://huggingface.co/datasets/youliangtan/so101-table-cleanup)
+(80 episodes, 46,963 frames, 4 language tasks) using an identical 72/8 episode
+split, then scored on the same 989 held-out frames.
 
-## Architecture
+| Model | Params | Held-out MAE | 95% CI | vs. BC | Inference | Meets 30 Hz |
+|-------|--------|--------------|--------|--------|-----------|-------------|
+| BC (from scratch) | 12.4M | 5.128 | [4.986, 5.276] | baseline | 14.2 ms | yes, 42.7% duty |
+| ACT | 51.6M | 2.151 | [2.090, 2.214] | -58.1% | 45.2 ms | yes, 1.4% duty |
+| SmolVLA (fine-tuned) | 450M | **1.736** | [1.673, 1.797] | **-66.1%** | 802 ms | yes, 48.1% duty |
 
-```
- front + wrist RGB ─┐
- instruction text ──┼─▶  VLA backbone / encoders  ─▶  policy head  ─▶  action chunk
- joint state ───────┘        (on the GPU box)                              │
-                                                                           ▼
-                                              temporal ensembling ─▶ SAFETY FILTER ─▶ motors
-                                                               (joint+velocity clamp,
-                                                                FK workspace box, e-stop)
-```
+![results](docs/results.png)
 
-The model runs in a **policy server** on a GPU machine; a thin **client** on the
-robot machine streams observations over a WebSocket and executes the returned
-action chunk at 30 Hz, requesting the next chunk before the current one runs out
-so GPU latency is hidden.
+The confidence intervals do not overlap, and the ordering holds on all four
+tasks individually. Most of the improvement comes from action chunking and a
+temporal architecture (BC to ACT, -58.1%) rather than from the 8.7x parameter
+increase to a pretrained VLA (ACT to SmolVLA, a further -19.3%). OpenVLA-7B was
+not trained because it does not fit in 12 GB of VRAM.
 
-<!-- DIAGRAM: redraw the above as a clean figure (draw.io / Excalidraw), export
-     PNG to docs/architecture.png, and embed it here. -->
+![training curves](docs/training_curves.png)
 
----
+Full analysis, ablations, and an explicit list of what was not evaluated are in
+[`reports/final_report.md`](reports/final_report.md). Model scope and limitations
+are in [`reports/model_card.md`](reports/model_card.md).
+
+### Metric definition
+
+Held-out action-prediction error is the mean absolute difference between the
+policy's action and the demonstrator's, in physical units (degrees), measured
+open-loop on episodes no model trained on. It is a relative ranking of the three
+models under identical conditions. It is not a success rate and cannot be
+converted into one: the policy is always shown a demonstrator's state, never a
+state produced by its own earlier actions, so compounding error is not captured.
+
+### Latency
+
+Measured on an idle RTX 5070, 50 timed calls after warm-up. A deployed loop runs
+at 30 Hz, so a query must complete before its action chunk finishes executing.
+
+| Model | Mean | p95 | Chunk | Motion per query | Duty cycle |
+|-------|------|-----|-------|------------------|------------|
+| BC | 14.2 ms | 14.9 ms | 1 | 33 ms | 42.7% |
+| BC, text cache disabled | 33.8 ms | 35.3 ms | 1 | 33 ms | 101.4% |
+| ACT | 45.2 ms | 47.0 ms | 100 | 3,333 ms | 1.4% |
+| SmolVLA | 802.0 ms | 864.0 ms | 50 | 1,667 ms | 48.1% |
+
+Chunking does not raise the control rate, since the arm runs at a fixed 30 Hz.
+It buys time: one query only needs to finish before its chunk runs out. The
+second row is an ablation of the frozen CLIP text embedding cache. The
+instruction is constant for an entire episode, so re-encoding it every control
+tick is wasted work, and removing the cache pushes the baseline past its
+real-time budget.
+
+## Data
+
+![dataset](docs/dataset.png)
+
+All four tasks share a single scene, so the instruction is the only signal
+distinguishing them. The split is by episode rather than by frame, which
+prevents temporally adjacent frames of one demonstration from appearing on both
+sides of the boundary.
 
 ## Repository layout
 
 ```
-configs/            YAML/JSON: robot geometry, safety envelope, training recipes,
-                    paraphrase bank, example eval suite
+configs/            Robot geometry, safety envelope, training recipes,
+                    paraphrase bank, example evaluation suite
 src/vla/
-  data/             LeRobotDataset adapter, BC torch Dataset, normalization stats,
-                    seeded layout randomization, paraphrase bank
+  data/             LeRobotDataset adapter, BC torch Dataset, normalization,
+                    train/held-out split, layout randomization, paraphrases
   models/           BC baseline: frozen CLIP text + ResNet-18 image + MLP head
-  training/         BC training loop
-  inference/        policy server, robot client, temporal ensembler, SAFETY FILTER,
-                    per-policy wrappers (bc/act/smolvla/openvla), msgpack wire codec
-  eval/             trial-spec schema, Wilson-CI metrics, operator-in-loop harness
-  robot/            SO-101 forward kinematics, LeRobot robot iface, ROS2 bridge,
+  training/         BC training loop, LeRobot trainer launcher
+  inference/        Policy server, robot client, temporal ensembler, safety
+                    filter, per-policy wrappers, msgpack wire codec
+  eval/             Trial-spec schema, Wilson-CI metrics, operator-in-loop harness
+  robot/            SO-101 forward kinematics, LeRobot interface, ROS2 bridge,
                     hardware-free DummyRobot
-  utils/            seeding, YAML config + overrides, experiment logging
-scripts/            CLI entrypoints (train, collect_demos, teleop, evaluate,
-                    run_policy_server, convert_to_openvla, demo_offline, ...)
-tests/              47 unit/integration tests for the hardware-free logic
-notebooks/          dataset_visualization.ipynb (pre-training sanity checks)
-reports/            final_report.md (ablation + failure tables), model_card.md
+  utils/            Seeding, YAML config and overrides, checkpoint resolution,
+                    experiment logging
+scripts/            CLI entrypoints for training, evaluation, benchmarking,
+                    figure generation, and robot operation
+tests/              66 hardware-free unit and integration tests
+notebooks/          dataset_visualization.ipynb
+reports/            final_report.md, model_card.md
+outputs/            Training logs and evaluation artifacts (weights excluded)
 ```
 
----
+## Setup
 
-## Quickstart on ANY machine (no GPU, no robot)
-
-The control-loop logic, safety filter, metrics, and evaluation harness all run on
-CPU. This is the first thing to try after cloning.
+Requires Python 3.10 and an NVIDIA GPU for training. The offline logic, safety
+filter, metrics, and evaluation harness run on CPU.
 
 ```bash
-python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install numpy scipy pyyaml pytest                 # minimal deps for the offline path
-
-python -m pytest -q                                   # 47 tests, all hardware-free
-python scripts/demo_offline.py --ticks 60             # full loop w/ DummyRobot + safety filter
-python scripts/evaluate.py --suite configs/eval_trials_example.json --dry-run
-python scripts/generate_randomization_sheet.py \
-    --num-episodes 50 --objects "red block" "green bowl" --out data/layouts/task1.csv
-```
-
-`demo_offline.py` deliberately injects out-of-range targets so you can watch the
-safety filter clamp them — no unsafe command reaches the (simulated) motors.
-
----
-
-## Full setup on a NEW GPU machine (training + real robot)
-
-This is the box that actually trains models and/or runs the arm. Steps assume
-Ubuntu 22.04 + an NVIDIA GPU (≥24 GB for the VLAs), or WSL2 on Windows.
-
-### 1. System prerequisites
-```bash
-# NVIDIA driver + CUDA toolkit must already be installed; verify:
-nvidia-smi                       # should list your GPU
-python --version                 # need 3.10+
-```
-
-### 2. Environment
-```bash
-git clone <your-fork-url> vla-robot-manipulation-project
-cd vla-robot-manipulation-project
-
 conda create -n vla python=3.10 -y && conda activate vla
-# Install a CUDA build of torch FIRST (match your CUDA version):
-pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
+
+# Install a CUDA build of torch matched to your GPU first. Blackwell cards
+# (RTX 50xx) require cu128; a cu124 build will not run on them.
+pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+
 pip install -r requirements.txt
-pip install -e .                 # makes `vla` importable + installs console scripts
-```
-> `bitsandbytes` (QLoRA) is Linux/CUDA-only; on Windows use WSL2 or skip QLoRA.
-
-### 3. Accounts / tracking
-```bash
-huggingface-cli login            # datasets + checkpoints push here
-wandb login                      # experiment tracking (or set logging.backend: tensorboard)
+pip install -e .
 ```
 
-### 4. (Real robot only) find ports, calibrate, mount cameras
+Verify the install from the repository root:
+
 ```bash
-lerobot-find-port                                        # identify each arm's serial port
-lerobot-calibrate --robot.type=so101_follower --robot.port=<PORT>
-lerobot-calibrate --teleop.type=so101_leader  --teleop.port=<PORT>
-# Copy the calibrated joint limits into configs/robot_so101.yaml.
-# Set the two camera indices in configs/robot_so101.yaml, then sanity-check:
-python scripts/teleop.py --robot-port <PORT> --teleop-port <PORT>
+python -m pytest                            # 66 passed
+python scripts/demo_offline.py --ticks 60
 ```
 
-### 5. Sanity-check the install (no robot needed)
+Note that `pyproject.toml` already sets `addopts = "-q"`. Passing `-q` again
+suppresses the summary line.
+
+![tests](docs/test_pass.png)
+
+### Windows notes
+
+This project was developed and run on Windows 11.
+
+- Enable Developer Mode (Settings, System, For developers). LeRobot marks its
+  newest checkpoint with a symlink and the Hugging Face cache deduplicates with
+  symlinks. Training works without it, since `vla.training.lerobot_launch` falls
+  back to a marker file, but the cache stores duplicate copies of every dataset.
+- `torchcodec` has no Windows wheel compatible with torch 2.7, so video decoding
+  falls back to pyav. This is the bottleneck for the BC baseline, not the GPU.
+
+## Reproducing the results
+
+Training. One entrypoint, one flag per model. Total runtime was 14 h 14 min on
+an RTX 5070.
+
 ```bash
-python -m pytest -q
-python scripts/demo_offline.py
-```
-
----
-
-## The pipeline (end to end)
-
-```bash
-# 1. Generate a reproducible object-placement sheet, then collect teleop demos.
-python scripts/generate_randomization_sheet.py --num-episodes 50 \
-    --objects "red block" "green bowl" --out data/layouts/block_in_bowl.csv
-python scripts/collect_demos.py --task block_in_bowl \
-    --repo-id youruser/so101_tabletop_v1 --num-episodes 50 \
-    --robot-port <PORT> --teleop-port <PORT> --layout-sheet data/layouts/block_in_bowl.csv
-
-# 2. Inspect the dataset before training.
-jupyter lab notebooks/dataset_visualization.ipynb
-
-# 3. Train. Same entrypoint, different --policy.
 python scripts/train.py --policy bc      --config configs/train_bc.yaml
 python scripts/train.py --policy act     --config configs/train_act.yaml
 python scripts/train.py --policy smolvla --config configs/train_smolvla.yaml
-# OpenVLA: convert first, then fine-tune (needs the OpenVLA-OFT repo installed).
-python scripts/convert_to_openvla.py --repo-id youruser/so101_tabletop_v1 \
-    --out data/openvla_rlds/so101_tabletop_v1
-python scripts/train.py --policy openvla --config configs/train_openvla_lora.yaml
-
-# 4. Serve the trained policy on the GPU box.
-python scripts/run_policy_server.py --policy-kind bc \
-    --checkpoint outputs/bc_baseline_v1/bc_best.pt --port 8000
-
-# 5. Evaluate on the robot (client connects to the server). Same suite for every model.
-python scripts/evaluate.py --suite configs/eval_trials_example.json \
-    --server-uri ws://<gpu-box>:8000
 ```
 
-The evaluation harness prints per-condition success with **Wilson 95% confidence
-intervals**, the **paraphrase gap**, and writes `trials.csv` + `report.md`.
+Evaluation and figures.
 
----
+```bash
+python scripts/eval_action_error.py \
+    --model bc:outputs/bc_baseline_v1/bc_best.pt \
+    --model act:outputs/act_v1/checkpoints/100000 \
+    --model smolvla:outputs/smolvla_v1/checkpoints/020000 --stride 5
+
+python scripts/bench_latency.py \
+    --model bc:outputs/bc_baseline_v1/bc_best.pt \
+    --model act:outputs/act_v1/checkpoints/100000 \
+    --model smolvla:outputs/smolvla_v1/checkpoints/020000
+
+python scripts/make_figures.py
+```
+
+Every figure and number in this README is regenerated from these commands.
+Nothing was entered by hand.
+
+## Robot operation
+
+This code path is implemented and unit-tested but has never been run on
+hardware. It is included because the system was designed around the client and
+server split, not retrofitted to it.
+
+```bash
+# On the GPU machine:
+python scripts/run_policy_server.py --policy-kind act \
+    --checkpoint outputs/act_v1/checkpoints/100000 --port 8000
+
+# On the machine wired to the arm:
+python scripts/evaluate.py --suite configs/eval_trials_example.json \
+    --server-uri ws://<gpu-host>:8000
+```
+
+The harness reports per-condition success with Wilson 95% confidence intervals,
+the paraphrase gap, and unseen-position and distractor breakdowns, writing
+`trials.csv` and `report.md` per model.
+
+`evaluate.py --dry-run` exercises the harness with no hardware by simulating
+outcomes with a seeded Bernoulli draw. Those labels are not measurements. Its
+output directory is excluded from version control so it cannot be mistaken for a
+result.
 
 ## Reproducibility
 
-- All seeds fixed at **42**; `set_seed` covers python/numpy/torch + cuDNN.
-- Every experiment's settings live in a committed YAML; CLI `--override key=val`
-  layers on top without editing the file.
-- Dataset versions are **tagged** on the Hub (`v1`, `v2`, …) and never overwritten.
-- **Record the exact LeRobot commit hash** in this README — the API moves fast:
-  `LeRobot commit: [paste hash here]`.
+- Seeds fixed at 42. `set_seed` covers Python, NumPy, torch, and cuDNN.
+- Every experiment setting lives in a committed YAML. `--override key=val` layers
+  on top without editing the file.
+- LeRobot v0.4.1 (PyPI release), pinned in `requirements.txt`.
+- The train/held-out split comes from one function (`vla.data.splits`) shared by
+  every model and pinned by unit tests. LeRobot's trainer otherwise consumes all
+  episodes, including the held-out ones.
+- The dataset was converted once from LeRobot codebase format v2.1 to v3.0 with
+  `python -m lerobot.datasets.v30.convert_dataset_v21_to_v30`. Its published
+  `meta/info.json` overstates the frame count (47,513 against an actual 46,963),
+  which makes LeRobot's sampler index past the end of the table until corrected.
+- Training logs and evaluation artifacts are committed under `outputs/`. Model
+  weights are not.
+- Weights and Biases runs: project `vla-manipulation`, linked from
+  [`reports/final_report.md`](reports/final_report.md).
 
 ## Safety
 
-The `SafetyFilter` (`src/vla/inference/safety.py`) sits between the policy and the
-motors and is **non-negotiable on real hardware**: per-joint limit clamps,
-per-tick velocity clamps, an FK-based workspace bounding box (rejects → holds the
-last safe pose), a gripper-current cap, and a keyboard e-stop that torques off all
-servos. See `reports/model_card.md` for its scope and limits.
+`SafetyFilter` (`src/vla/inference/safety.py`) sits between the policy and the
+motors: per-joint limit clamps, per-tick velocity clamps, a forward-kinematics
+workspace bounding box that holds the last safe pose on violation, a gripper
+current cap, and a keyboard e-stop that torques off all servos.
+
+`scripts/demo_offline.py` runs the full control loop against a simulated robot
+with out-of-range targets injected. Loop latency is 3.27 ms mean, 3.53 ms p95,
+3.94 ms max over 60 ticks, with the filter engaging on 21 of those ticks and no
+unsafe target reaching the simulated motors.
+
+![safety filter](docs/safety_demo.png)
+
+This is an engineering envelope, not a certified safety controller, and it has
+only been tested in simulation.
 
 ## License
-MIT (this code). Base VLA weights (OpenVLA, SmolVLA) are under their own licenses.
+
+MIT for this code. Base model weights (SmolVLA, OpenVLA) are under their own
+licenses. The dataset is published by its original authors under its own terms.

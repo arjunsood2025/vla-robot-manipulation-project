@@ -51,7 +51,8 @@ class ResNetImageEncoder(nn.Module):
 class CLIPTextEncoder(nn.Module):
     """Frozen CLIP text tower. Tokenises raw strings and returns pooled features."""
 
-    def __init__(self, model_name: str = "openai/clip-vit-base-patch32"):
+    def __init__(self, model_name: str = "openai/clip-vit-base-patch32",
+                 cache_embeddings: bool = True):
         super().__init__()
         from transformers import CLIPTokenizer, CLIPTextModel
 
@@ -62,14 +63,46 @@ class CLIPTextEncoder(nn.Module):
         self.text_model.eval()
         self.out_dim = self.text_model.config.hidden_size  # 512 for ViT-B/32
 
-    @torch.no_grad()
-    def forward(self, instructions: list[str], device: torch.device) -> torch.Tensor:
+        # The tower is frozen and always in eval mode, so a given string's
+        # embedding is deterministic and worth caching: a control loop re-issues
+        # the SAME instruction every tick, and without this each tick pays for
+        # tokenisation plus a full text forward pass. Benchmarking the served BC
+        # policy showed that dominating per-call latency. The cache is keyed by
+        # string and an episode has one instruction, so it stays tiny.
+        #
+        # Caching stores each string encoded ALONE. Encoding the same string
+        # inside a padded batch differs in the last ~1e-6 (float32 batched-matmul
+        # nondeterminism, measurable with the cache disabled — it is not caused
+        # by caching). Repeat calls at a fixed batch shape are bit-identical.
+        # That is far below action-prediction error, but it does mean cached and
+        # uncached runs are not bit-reproducible against each other; disable the
+        # cache if you need exact parity with a previously batched run.
+        self._cache_enabled = cache_embeddings
+        self._cache: dict[str, torch.Tensor] = {}
+
+    def _encode(self, instructions: list[str], device: torch.device) -> torch.Tensor:
         tokens = self.tokenizer(
             instructions, padding=True, truncation=True, max_length=32, return_tensors="pt"
         ).to(device)
         out = self.text_model(**tokens)
         # Pooled output = features at the EOS token; CLIP's sentence embedding.
         return out.pooler_output  # (B, out_dim)
+
+    @torch.no_grad()
+    def forward(self, instructions: list[str], device: torch.device) -> torch.Tensor:
+        if not self._cache_enabled:
+            return self._encode(instructions, device)
+
+        missing = [s for s in dict.fromkeys(instructions) if s not in self._cache]
+        for s in missing:
+            # Encode each new string on its own, so the value stored for a short
+            # instruction can never depend on how long its batch-mates were.
+            self._cache[s] = self._encode([s], device)[0]
+        cached = [self._cache[s] for s in instructions]
+        return torch.stack(cached).to(device)
+
+    def clear_cache(self) -> None:
+        self._cache.clear()
 
     def output_dim(self) -> int:
         return self.out_dim

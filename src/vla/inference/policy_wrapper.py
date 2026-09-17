@@ -9,6 +9,7 @@ the boundary a clean "add a new policy" PR would slot into.
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -80,39 +81,108 @@ class LeRobotPolicyWrapper:
     here we return the single action it hands back (H=1 from the caller's view;
     LeRobot does the internal chunking/ensembling)."""
 
-    def __init__(self, checkpoint_dir: str, device: str = "cuda"):
+    def __init__(self, checkpoint_dir: str, device: str = "cuda",
+                 rename_map: dict[str, str] | None = None,
+                 ds_repo_id: str | None = None):
         import torch
-        from lerobot.common.policies.factory import make_policy
+        from lerobot.configs.policies import PreTrainedConfig
+        from lerobot.policies.factory import (get_policy_class,
+                                              make_pre_post_processors)
+
+        # LeRobot writes checkpoints as <ckpt>/pretrained_model/; accept either
+        # that directory or its parent so callers can pass whichever they have.
+        path = Path(checkpoint_dir)
+        if (path / "pretrained_model").is_dir():
+            path = path / "pretrained_model"
+        path = str(path)
+
+        cfg = PreTrainedConfig.from_pretrained(path)
+        cfg.pretrained_path = path
 
         self.device = device
-        self.policy = make_policy(pretrained_path=checkpoint_dir).to(device)
+        self.rename_map = rename_map or {}
+
+        # LeRobot's make_policy() insists on dataset metadata (or a sim env)
+        # purely to derive input/output feature shapes. A *trained* checkpoint
+        # already records those in its own config, so requiring the training
+        # dataset just to serve a policy would be a needless deployment
+        # dependency — the policy server should run on a machine that has the
+        # weights and nothing else. Build it straight from the checkpoint when
+        # the features are present, and only fall back to the dataset when they
+        # are not.
+        if cfg.input_features and cfg.output_features:
+            self.policy = get_policy_class(cfg.type).from_pretrained(
+                pretrained_name_or_path=path, config=cfg
+            ).to(device)
+        else:
+            from lerobot.datasets.lerobot_dataset import LeRobotDatasetMetadata
+            from lerobot.policies.factory import make_policy
+
+            if ds_repo_id is None:
+                raise ValueError(
+                    f"{path} has no input/output features in its config; pass "
+                    "ds_repo_id so the shapes can be read from dataset metadata."
+                )
+            self.policy = make_policy(
+                cfg=cfg,
+                ds_meta=LeRobotDatasetMetadata(ds_repo_id),
+                rename_map=self.rename_map,
+            ).to(device)
         self.policy.eval()
+
+        # Normalization/unnormalization live in these pipelines in LeRobot
+        # 0.4.x, not inside the model, so inference must run through them or
+        # actions come back in normalised units.
+        self.preprocessor, self.postprocessor = make_pre_post_processors(
+            policy_cfg=cfg,
+            pretrained_path=path,
+            preprocessor_overrides={
+                "device_processor": {"device": str(device)},
+                "rename_observations_processor": {"rename_map": self.rename_map},
+            },
+        )
         self.action_dim = self.policy.config.action_feature.shape[0]
         self._torch = torch
 
-    def act(self, observation: dict) -> np.ndarray:
+    def _build_batch(self, observation: dict):
         torch = self._torch
         batch = {"observation.state": torch.as_tensor(
-            np.asarray(observation["state"]), dtype=torch.float32).unsqueeze(0).to(self.device)}
+            np.asarray(observation["state"]), dtype=torch.float32).unsqueeze(0)}
         for cam, arr in observation["images"].items():
             t = torch.as_tensor(np.asarray(arr)).float()
             if t.ndim == 3 and t.shape[0] not in (1, 3):
                 t = t.permute(2, 0, 1)
             if t.max() > 1.5:
                 t = t / 255.0
-            batch[f"observation.images.{cam}"] = t.unsqueeze(0).to(self.device)
-        batch["task"] = [observation["instruction"]]
+            batch[f"observation.images.{cam}"] = t.unsqueeze(0)
+        batch["task"] = observation["instruction"]
+        return batch
+
+    def act(self, observation: dict) -> np.ndarray:
+        torch = self._torch
+        batch = self._build_batch(observation)
         with torch.no_grad():
-            action = self.policy.select_action(batch)
-        return action.squeeze(0).cpu().numpy()[None, :]
+            action = self.policy.select_action(self.preprocessor(batch))
+            action = self.postprocessor(action)
+        return action.squeeze(0).float().cpu().numpy()[None, :]
 
 
-def load_policy(kind: str, path: str, device: str = "cuda") -> Policy:
-    """Factory: kind in {'bc', 'act', 'smolvla', 'openvla'}."""
+def load_policy(kind: str, path: str, device: str = "cuda",
+                rename_map: dict[str, str] | None = None,
+                ds_repo_id: str | None = None) -> Policy:
+    """Factory: kind in {'bc', 'act', 'smolvla', 'openvla'}.
+
+    ``rename_map`` maps this dataset's camera keys onto the ones a pretrained
+    checkpoint expects (SmolVLA's base model wants camera1/camera2); it is
+    ignored by the families that do not need it. ``ds_repo_id`` is only needed
+    for a LeRobot checkpoint whose config lacks feature shapes (see
+    LeRobotPolicyWrapper); trained checkpoints carry their own.
+    """
     if kind == "bc":
         return BCPolicyWrapper(path, device)
     if kind in ("act", "smolvla", "pi0"):
-        return LeRobotPolicyWrapper(path, device)
+        return LeRobotPolicyWrapper(path, device, rename_map=rename_map,
+                                    ds_repo_id=ds_repo_id)
     if kind == "openvla":
         from vla.inference.openvla_wrapper import OpenVLAPolicyWrapper
 

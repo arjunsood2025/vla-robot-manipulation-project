@@ -12,6 +12,8 @@
 #     --policy.kl_weight=10 --policy.optimizer_lr=1e-5 \
 #     --output_dir=outputs/act_v1 --wandb.enable=true
 
+seed: 42
+
 policy:
   type: act
   chunk_size: 100          # actions predicted per forward pass
@@ -25,14 +27,20 @@ policy:
   use_vae: true
 
 dataset:
-  repo_id: "local/so101_tabletop_v1"
+  repo_id: "youliangtan/so101-table-cleanup"   # Lane A public SO-101 dataset
+  # Same held-out episodes as the BC baseline, so the ladder comparison is
+  # not contaminated by one rung having trained on another's eval data.
+  val_fraction: 0.1
 
 train:
   batch_size: 8
-  steps: 100000
+  steps: 100000          # ~5.0 h on an RTX 5070 at the measured 0.18 s/step
   optimizer_lr: 1.0e-5
   lr_backbone: 1.0e-5
   weight_decay: 1.0e-4
+  num_workers: 8
+  save_freq: 10000
+  log_freq: 250
 
 # Inference-time temporal ensembling (see vla.inference.action_chunking).
 inference:
@@ -40,3 +48,7 @@ inference:
   ensemble_weight_m: 0.01   # exponential weight exp(-m * age); smaller = smoother
 
 output_dir: "outputs/act_v1"
+
+logging:
+  project: "vla-manipulation"
+  backend: "wandb"        # "wandb" | "tensorboard" | "none"

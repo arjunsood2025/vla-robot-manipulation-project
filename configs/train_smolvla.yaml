@@ -9,16 +9,38 @@
 #     --batch_size=64 --steps=20000 \
 #     --output_dir=outputs/smolvla_v1 --wandb.enable=true
 
+seed: 42
+
 policy:
   path: "lerobot/smolvla_base"   # pretrained checkpoint to fine-tune from
   type: smolvla
 
 dataset:
-  repo_id: "local/so101_tabletop_v1"
+  repo_id: "youliangtan/so101-table-cleanup"   # Lane A public SO-101 dataset
+  # Same held-out episodes as the BC baseline, so the ladder comparison is
+  # not contaminated by one rung having trained on another's eval data.
+  val_fraction: 0.1
 
 train:
-  batch_size: 64
+  # batch_size 64 (the upstream recipe, sized for a 24 GB card) does not fit in
+  # the RTX 5070's 12 GB -- it dies with a CUDA mapping failure in pin_memory.
+  # 32 was measured as the best-throughput size that fits: 0.82 s/step
+  # (39 samples/s) vs 24 at bs=16 and 16 at bs=8.
+  batch_size: 32
   steps: 20000
   optimizer_lr: 1.0e-4
+  num_workers: 4
+  save_freq: 5000        # 450M params: each checkpoint carries optimizer state (~5 GB)
+  log_freq: 100
+
+# SmolVLA's pretrained checkpoint names its cameras camera1/2/3; this dataset
+# names them front/wrist. LeRobot maps between them at load time.
+rename_map:
+  observation.images.front: observation.images.camera1
+  observation.images.wrist: observation.images.camera2
 
 output_dir: "outputs/smolvla_v1"
+
+logging:
+  project: "vla-manipulation"
+  backend: "wandb"        # "wandb" | "tensorboard" | "none"

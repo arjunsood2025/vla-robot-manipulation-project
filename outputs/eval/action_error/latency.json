@@ -1,0 +1,61 @@
+{
+  "device": "cuda",
+  "results": {
+    "bc": {
+      "n_iters": 50,
+      "mean_ms": 14.216883978806436,
+      "p50_ms": 14.18534992262721,
+      "p95_ms": 14.889975043479353,
+      "max_ms": 19.72269988618791,
+      "n_action_steps": 1,
+      "query_hz": 70.33890137182888,
+      "control_hz_assumed": 30.0,
+      "chunk_duration_ms": 33.333333333333336,
+      "duty_cycle": 0.42650651936419304,
+      "realtime_feasible": true,
+      "text_cache_speedup": 2.3769357655024237,
+      "query_period_vs_bc": 1.0
+    },
+    "bc_no_text_cache": {
+      "n_iters": 50,
+      "mean_ms": 33.79262000322342,
+      "p50_ms": 33.824200043454766,
+      "p95_ms": 35.27545502875,
+      "max_ms": 40.90750007890165,
+      "n_action_steps": 1,
+      "query_hz": 29.592260082367446,
+      "control_hz_assumed": 30.0,
+      "chunk_duration_ms": 33.333333333333336,
+      "duty_cycle": 1.0137786000967024,
+      "realtime_feasible": false
+    },
+    "act": {
+      "n_iters": 50,
+      "mean_ms": 45.1568319927901,
+      "p50_ms": 45.60594994109124,
+      "p95_ms": 47.0141701051034,
+      "max_ms": 47.81219991855323,
+      "n_action_steps": 100,
+      "query_hz": 22.145043305067624,
+      "control_hz_assumed": 30.0,
+      "chunk_duration_ms": 3333.3333333333335,
+      "duty_cycle": 0.01354704959783703,
+      "realtime_feasible": true,
+      "query_period_vs_bc": 100.0
+    },
+    "smolvla": {
+      "n_iters": 50,
+      "mean_ms": 802.0373220043257,
+      "p50_ms": 797.2938499879092,
+      "p95_ms": 864.0251799952238,
+      "max_ms": 900.5219000391662,
+      "n_action_steps": 50,
+      "query_hz": 1.2468247705742135,
+      "control_hz_assumed": 30.0,
+      "chunk_duration_ms": 1666.6666666666667,
+      "duty_cycle": 0.4812223932025954,
+      "realtime_feasible": true,
+      "query_period_vs_bc": 50.0
+    }
+  }
+}

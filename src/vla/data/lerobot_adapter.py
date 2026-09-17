@@ -31,11 +31,30 @@ class EpisodeIndex:
         return len(self.frames_of_episode)
 
 
+def _import_lerobot_dataset_cls():
+    """Return the ``LeRobotDataset`` class across LeRobot layouts.
+
+    LeRobot moved the module from ``lerobot.common.datasets`` (<=0.1.x) to
+    ``lerobot.datasets`` (0.3+). This project is pinned to 0.4.1, but keeping
+    both paths means a version bump breaks in exactly one place — which is the
+    whole point of this adapter module.
+    """
+    try:
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+    except ModuleNotFoundError:  # pragma: no cover - legacy LeRobot layout
+        from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+    return LeRobotDataset
+
+
 def load_lerobot_dataset(repo_id: str, root: str | None = None):
     """Instantiate a LeRobotDataset (downloading from the Hub unless ``root`` is
-    a local dataset directory). Returns the LeRobot object untouched."""
-    from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+    a local dataset directory). Returns the LeRobot object untouched.
 
+    Note the dataset must be in LeRobot codebase format v3.0; older v2.1 Hub
+    datasets are converted once with
+    ``python -m lerobot.datasets.v30.convert_dataset_v21_to_v30``.
+    """
+    LeRobotDataset = _import_lerobot_dataset_cls()
     return LeRobotDataset(repo_id, root=root)
 
 

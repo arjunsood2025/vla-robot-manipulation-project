@@ -12,8 +12,24 @@ env/
 # Data & model artifacts (tracked on the HF Hub / W&B, not in git)
 data/raw_episodes/
 data/processed_episodes/
-outputs/
+outputs/*
 checkpoints/
+
+# ...but DO publish the small text artifacts that the reported numbers trace
+# back to. Weights stay out of git; the evidence for a claim does not.
+!outputs/train_logs/
+outputs/train_logs/*
+!outputs/train_logs/*.log
+!outputs/eval/
+outputs/eval/*
+!outputs/eval/action_error/
+outputs/eval/action_error/*
+!outputs/eval/action_error/*.md
+!outputs/eval/action_error/*.json
+# NOTE: outputs/eval/block_in_bowl_smoke/ is deliberately NOT published -- it is
+# the output of `evaluate.py --dry-run`, whose labels are a seeded Bernoulli
+# draw, not measurements. Publishing it would invite reading fabricated success
+# rates as results.
 *.ckpt
 *.pt
 *.pth
@@ -39,7 +55,9 @@ Thumbs.db
 *.local.yaml
 calibration/*.json
 
-# Prep
-CLAUDE.md
+# Personal working documents. GUIDE.md is the private project playbook (build
+# notes, learning plan, Lane C instructions); CLAUDE.md and PROGRESS.md are the
+# build brief and scratch notes. None of these are part of the published project.
 GUIDE.md
+CLAUDE.md
 PROGRESS.md

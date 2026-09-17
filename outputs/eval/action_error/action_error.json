@@ -1,0 +1,127 @@
+{
+  "dataset": "youliangtan/so101-table-cleanup",
+  "held_out_episodes": [
+    0,
+    25,
+    28,
+    33,
+    40,
+    51,
+    60,
+    61
+  ],
+  "n_train_episodes": 72,
+  "stride": 5,
+  "n_frames_scored": 989,
+  "metric": "mean absolute action error, physical units, open-loop single step",
+  "results": {
+    "bc": {
+      "n_frames": 989,
+      "mae": 5.12813811957865,
+      "mae_ci95": [
+        4.985810507678125,
+        5.276001288233076
+      ],
+      "median_ae": 4.808167576789856,
+      "rmse": 7.243540947244416,
+      "per_joint_mae": [
+        3.4633214322377386,
+        6.297893654958122,
+        8.407337021387745,
+        6.661046771929647,
+        3.4633321665411985,
+        2.4758976704174516
+      ],
+      "by_task": {
+        "Grab markers and place into pen holder": {
+          "n_frames": 379,
+          "mae": 4.530180636098774
+        },
+        "Grab pens and place into pen holder": {
+          "n_frames": 171,
+          "mae": 5.196729721570457
+        },
+        "Grab scissor and place into pen holder": {
+          "n_frames": 202,
+          "mae": 6.245862682641979
+        },
+        "Grab tapes and place into pen holder": {
+          "n_frames": 237,
+          "mae": 5.082215590293765
+        }
+      }
+    },
+    "act": {
+      "n_frames": 989,
+      "mae": 2.1507946569431744,
+      "mae_ci95": [
+        2.0903079011600028,
+        2.2138086320031003
+      ],
+      "median_ae": 2.004594365755717,
+      "rmse": 3.068542052515884,
+      "per_joint_mae": [
+        1.4715635611311249,
+        2.7724857361887416,
+        3.2485163916350617,
+        2.945325245238893,
+        1.4918559558173552,
+        0.9750210516478705
+      ],
+      "by_task": {
+        "Grab markers and place into pen holder": {
+          "n_frames": 379,
+          "mae": 2.2124154916624543
+        },
+        "Grab pens and place into pen holder": {
+          "n_frames": 171,
+          "mae": 1.6764413976558934
+        },
+        "Grab scissor and place into pen holder": {
+          "n_frames": 202,
+          "mae": 2.549879187509024
+        },
+        "Grab tapes and place into pen holder": {
+          "n_frames": 237,
+          "mae": 2.054360208863919
+        }
+      }
+    },
+    "smolvla": {
+      "n_frames": 989,
+      "mae": 1.735701261755904,
+      "mae_ci95": [
+        1.672855192293794,
+        1.7972367702433771
+      ],
+      "median_ae": 1.5387259721755981,
+      "rmse": 2.6971593492146337,
+      "per_joint_mae": [
+        1.0275567989604297,
+        2.071237169537614,
+        2.4681999510713486,
+        2.5896475547124207,
+        1.1058359354888856,
+        1.1517301607647246
+      ],
+      "by_task": {
+        "Grab markers and place into pen holder": {
+          "n_frames": 379,
+          "mae": 1.7969149014140129
+        },
+        "Grab pens and place into pen holder": {
+          "n_frames": 171,
+          "mae": 1.3754372837105455
+        },
+        "Grab scissor and place into pen holder": {
+          "n_frames": 202,
+          "mae": 1.92983509689299
+        },
+        "Grab tapes and place into pen holder": {
+          "n_frames": 237,
+          "mae": 1.7322841145729568
+        }
+      }
+    }
+  }
+}

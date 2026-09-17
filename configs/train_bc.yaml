@@ -5,7 +5,9 @@
 seed: 42
 
 dataset:
-  repo_id: "local/so101_tabletop_v1"   # HF repo id OR a local LeRobotDataset root
+  # Lane A: public SO-101 dataset (front+wrist cams, 4 language tasks, 80 eps).
+  # Converted once from LeRobot codebase v2.1 -> v3.0, see README "Data".
+  repo_id: "youliangtan/so101-table-cleanup"   # HF repo id OR a local LeRobotDataset root
   root: null                            # set to a local path to skip Hub download
   image_keys: ["observation.images.front", "observation.images.wrist"]
   state_key: "observation.state"
@@ -29,7 +31,11 @@ train:
   batch_size: 64
   lr: 1.0e-4
   weight_decay: 1.0e-4
-  epochs: 50
+  # 20 epochs = ~840k samples seen. Deliberately more exposure than ACT (800k)
+  # and SmolVLA (640k) get, so the ladder comparison is not confounded by
+  # budget, while avoiding epochs that only burn time: this loop is
+  # dataloader-bound on MP4 decode (pyav), not compute-bound.
+  epochs: 20
   optimizer: "adamw"
   grad_clip_norm: 1.0
   num_workers: 8
