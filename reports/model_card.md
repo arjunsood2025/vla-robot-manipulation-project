@@ -1,9 +1,7 @@
 # Model Card — SO-101 Language-Conditioned Manipulation Policies
 
-> **Scope of this card.** Three policies were trained (BC baseline, ACT, SmolVLA
-> fine-tune) and evaluated **offline only**. No policy in this card has ever been
-> run on a physical robot. See *Evaluation* and *Limitations* before quoting any
-> number from it.
+> **Scope:** Three policies were trained (BC baseline, ACT, SmolVLA
+> fine-tune) and evaluated **offline only**.
 
 ## Model details
 - **Family / variants:** from-scratch BC baseline (12.4M trainable), ACT
