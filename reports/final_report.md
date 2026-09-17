@@ -1,11 +1,8 @@
 # Language-Conditioned VLA Manipulation — Final Report
 
 > **Evaluation scope (read first).** Every model here was trained and evaluated
-> **entirely offline, on a public dataset, with no robot.** The headline metric is
-> held-out **action-prediction error**, not task success. No policy in this report
-> has ever been executed on hardware, and nothing here establishes that any of
-> them would complete a manipulation task. Sections that would require a robot
-> are marked **not evaluated** rather than filled in.
+> **entirely offline, on a public dataset, with no robot.** The main metric measured is
+> the held-out **action-prediction error**, not task success as the policy was never executed on real hardware.
 
 ## 1. Problem & setup
 
@@ -86,14 +83,11 @@ by one easy task. "Scissor" is hardest for every model and "pens" easiest for th
 two chunked models — consistent with scissors being the most geometrically
 awkward grasp in this scene, though we cannot confirm that without rollouts.
 
-### What this metric does and does not show
+### Limitations of this result
 Held-out action error is measured **open-loop**: at every scored frame the policy
 is shown a *demonstrator's* state, never a state produced by its own earlier
-actions. Real rollouts compound error, so this cannot be converted into a success
-rate. A policy could also track the average trajectory closely while never
-actually closing the gripper. Read the table as a *relative ranking of three
-rungs under identical conditions* — which is exactly what a ladder is for — and
-nothing more.
+actions. Additionally, a policy could also track the average trajectory closely while never
+actually closing the gripper. As a result, on a real robot, a model which predicted the human's movement very closely may not necessarily complete the task successfully.
 
 ## 4. Inference latency and the cost of chunking
 
@@ -109,7 +103,7 @@ its chunk finishes executing.
 | ACT | 45.2 ms | 47.0 ms | 100 | 3,333 ms | **1.4%** | yes |
 | SmolVLA | 802.0 ms | 864.0 ms | 50 | 1,667 ms | 48.1% | yes |
 
-Three things worth drawing out:
+Notes:
 
 1. **Chunking does not raise the control rate — it buys time.** The arm runs at
    30 Hz regardless. ACT's 45 ms query supplies 3.3 s of motion, so it spends
@@ -160,24 +154,10 @@ architecture**, not from the 8.7× jump in parameters or from VLA pretraining. A
 450M-parameter pretrained VLA bought roughly a fifth off an ACT that trains from
 scratch in the same wall-clock time and runs 18× faster.
 
-## 6. Not evaluated (requires hardware)
-
-Task success rate; the `[A%] → [B%]` success improvement; paraphrase
-generalization gap; distractor robustness; unseen-object-position generalization;
-the language-ablation probe; conflicting-instruction grounding; failure-mode
-counts; end-to-end latency to a real arm.
-
-The harness for all of these is built and committed
-(`scripts/evaluate.py`, `configs/eval_trials_example.json`,
-`src/vla/eval/metrics.py` with Wilson intervals) and is exercised in `--dry-run`
-mode. **`--dry-run` labels are a seeded Bernoulli draw, not measurements**, and
-its output is deliberately excluded from version control so it can never be
-mistaken for a result.
-
-## 7. Scope decisions and limitations
+## 6. Scope decisions and limitations
 
 - **OpenVLA-7B was not trained.** It needs ~24 GB even with QLoRA; the available
-  GPU has 12 GB. Documented as future work rather than approximated.
+  GPU has 12 GB.
 - **SmolVLA ran at batch 32, not the upstream recipe's 64** — 64 exhausts 12 GB
   (CUDA failure in `pin_memory`). 32 was measured as the best-throughput size
   that fits (0.82 s/step, 39 samples/s, vs 24 at bs=16 and 16 at bs=8).
@@ -195,7 +175,7 @@ mistaken for a result.
   falls back to pyav. This dominates BC's training time (GPU util ~1% during
   BC training) and is the main reason a 12M-parameter model took 256 minutes.
 
-## 8. Reproducibility checklist
+## 7. Reproducibility checklist
 
 - [x] Every hyperparameter in a committed YAML (`configs/train_*.yaml`)
 - [x] `requirements.txt` fully pinned; `lerobot==0.4.1` recorded in the README
